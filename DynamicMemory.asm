@@ -82,7 +82,12 @@
 	# from the user. It then checks to ensure that this name is not taken.
 	# If the name is taken, it will ask for another name until a valid one is given.
 	#
-	# The subroutine will then store the data and return to the input loop in main
+	# The subroutine will then store the data and return to the input loop in main.
+	#
+	# In the loop, saved variables are:
+	#	$s0 - Number of chunks to allocate
+	#	$s1 - Index of first chunk (0 based)
+	#	$s2 - Address of first character in string
 	# #
 	allocateMemory:
 		# Prompt user for allocation size
@@ -153,34 +158,22 @@
 			bne 		$t1, $t2, searchForSpace
 		endSearchForSpace:  
 
+#################################################################################################################
 
-		# Print 2x newline
-		li $v0, 4
-		la $a0, NewLine
-		syscall
-		syscall
+		# Find first empty string location and save address in $a0
+		la 				$a0, VarNames 				# Load initial address of strings
 
-		# Print start index
-		li $v0, 1
-		addi $a0, $t3, 0
-		syscall
-
-		# Print Dash
-		li $v0, 4
-		la $a0, Dash
-		syscall
-
-		# Print contiguous count
-		li $v0, 1
-		addi $a0, $t4, 0
-		syscall
-
-		# Print newline
-		li $v0, 4
-		la $a0, NewLine
-		syscall
+		searchForAddress:
 
 
+
+		# Get string from user. Address is in $a0
+		addi 			$a1, $zero, 21				# Max length of string is 21 (20 characters + '\0')
+		li 				$v0, 8						# Load read_string command
+		syscall										# Read string
+		jal 			removeNewLine 				# Remove trailing newline
+
+#################################################################################################################
 
 		j 				inputLoop 					# Restart the input loop
 
