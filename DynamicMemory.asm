@@ -4,40 +4,34 @@
 		# Based on input, memory is allocated, deallocated, or loop is restarted
 		inputLoop:
 			# Prompt for command
-			li 			$v0, 4						# Load print_string command
-			la 			$a0, CommandRequest 		# Give command request to user
+			li 			$v0, 4									# Load print_string command
+			la 			$a0, CommandRequest 					# Give command request to user
 			syscall
 
-			la 			$a0, Input					# Load address of input string
-			syscall									# Print input string
+			la 			$a0, Input								# Load address of input string
+			syscall												# Print input string
 
 
 			# Read command
-			li 			$v0, 8						# Load read_string command
-			la 			$a0, UserString				# Put buffer address in $a0
-			addi 		$a1, $zero, 12 				# Read a maximum of 12 characters (deallocate = 10 + '\n' + '\0')
-			syscall									# User command will be stored in $a0
-			jal 		removeNewLine				# Remove trailing newline from input
+			li 			$v0, 8									# Load read_string command
+			la 			$a0, UserString							# Put buffer address in $a0
+			addi 		$a1, $zero, 12 							# Read a maximum of 12 characters (deallocate = 10 + '\n' + '\0')
+			syscall												# User command will be stored in $a0
+			jal 		removeNewLine							# Remove trailing newline from input
 
 
-			# Compare input string and "allocate"
-			la 			$a1, Allocate 				# Load address of Allocate in $a1
-			jal 		strcmp
+			la 			$a1, Allocate 							# Load address of Allocate in $a1
+			jal 		strcmp									# Compare user string with "allocate"
 
 
-			# Check if user string matches allocate (i.e., $v0 = 1)
-			addi 		$t0, $zero, 1
-			beq 		$v0, $t0, allocateMemory
+			beq 		$v0, $zero, allocateMemory				# If user string matches allocate ($v0 = 0), jump to allocate subroutine
 
 
-			# If user string does not match allocate, compare with "deallocate"
-			la 			$a1, Deallocate 			# Load address of Deallocate in $a1
-			jal 		strcmp
+			la 			$a1, Deallocate 						# Load address of Deallocate in $a1
+			jal 		strcmp									# Compare user string with "deallocate"
 
 
-			# Check if user string matches deallocate (i.e., $v0 = 1)
-			addi 		$t0, $zero, 1
-			beq 		$v0, $t0, deallocateMemory
+			beq 		$v0, $zero, deallocateMemory 			# If user string matches deallocate ($v0 = 0), jump to deallocate subroutine
 
 
 			# If user string does not match deallocate, compare with "quit"
@@ -45,18 +39,15 @@
 			jal			strcmp
 
 
-			# Check if user string matches quit (i.e., $v0 = 1)
-			addi 		$t0, $zero, 1
-			beq 		$v0, $t0, exit
+			beq 		$v0, $zero, exit 						# If user string matches quit, ($v0 = 0), jump to exit subroutine
 
 
-			# If return value is zero, tell user the input was bad
-			bne 		$v0, $zero, inputLoop
-			li 			$v0, 4
-			la 			$a0, BadInput
-			syscall
+			# If user string did not match "quit", then input is bad. 
+			li 			$v0, 4									# Load print_string command
+			la 			$a0, BadInput 							# Load address for BadInput string
+			syscall												# Print BadInput string
 
-			j 			inputLoop 					# Repeat input loop
+			j 			inputLoop 								# Repeat input loop
 
 
 		# Terminates execution
@@ -188,7 +179,7 @@
 		endEmptyStringSearch:
 
 
-		bne 			$s3, $t1, continueAllocate				# If index $s3 is not equal to 64, an empty string was found
+		blt 			$s3, $t1, continueAllocate				# If index $s3 is less than 64, an empty string was found
 
 		# If index is equal to 64, then a string was not found. Abandon allocation
 		# Print newline
@@ -210,6 +201,11 @@
 		continueAllocate:
 
 
+		la 				$a0, NewLine 							# Load address of NewLine string
+		li 				$v0, 4
+		syscall
+
+
 		# Prompt user for variable name
 		la 				$a0, NamePrompt 						# Load address of NamePrompt string
 		li 				$v0, 4									# Load print_string command
@@ -227,16 +223,46 @@
 		addi 			$s2, $a0, 0 							# Store address of beginning of first empty string in $s2
 
 
-		# Loop through variable name list and check if user given name already exists
+		# Loop through variable name list and check if user given name already exists. User string is already in $a0
 		la 				$a1, VarNames 							# Load address of the name table
-		xor				$t1, $t1, $t1 							# Initialize index to zero
-		addi 			$t2, $zero, 64							# Set max index value
+		xor				$a2, $a2, $a2 							# Initialize index to zero
+		addi 			$a3, $zero, 63							# Set max index value
 
 		checkForDuplicate:
+			bgt 		$a2, $a3, noDuplicate		 			# If index is greater than max index, exit loop
+			beq 		$a2, $s3, skipCheck 					# If current index is equal to variable index, skip checking for duplicate
 
+			lbu 		$t0, ($a1)								# Load first byte of current word in name table
+			beq 		$t0, $zero, skipCheck 					# If first byte is null, no string exists. Skip checking to save computation time
+
+			jal 		strcmp 									# Compare user variable name and current name from table
+
+			beq 		$v0, $zero, endCheckForDuplicate 		# If return value is 0, strings match and a duplicate is found
+
+			skipCheck:
+			addi 		$a2, $a2, 1 							# Increment index
+			addi 		$a1, $a1, 21 							# Increment variable name address to next word
+
+			j 			checkForDuplicate
 		endCheckForDuplicate:
 
+		# Erase user variable name. $a0 already has address of variable name string
+		addi 			$a1, $zero, 21 							# Set $a1 to length of string
+		jal 			strdel									# Delete string (zeroes out bytes)
 
+
+		# Tell user name already exists
+		la 				$a0, BadVarName 						# Load address of BadVarName string
+		li 				$v0, 4	 								# Load print_string command
+		syscall 												# Print BadVarName string
+		la 				$a0, NewLine 							# Load address of NewLine string
+		syscall													# Print newline
+		syscall 												# Print newline
+
+		j inputLoop
+
+
+		noDuplicate:
 		# Edit the chunk table to save new chunk availabilities
 		la 				$a0, ChunkList							# Load address of data table
 		sll 			$t0, $s1, 2								# Multiply index of first int by four (each int takes four bytes)
@@ -405,7 +431,7 @@
 	# String compare function							
 	# 	$a0 = str1 (user string)
 	#	$a1 = str2 (constant string)
-	# 	$v0 = return value (0 = not equal, 1 = equal)	
+	# 	$v0 = return value (0 = equal, 1 = not equal)	
 	#													
 	# C equivalent function:							
 	#													
@@ -413,10 +439,10 @@
 	# 	{
 	#		while( a != 0 )
 	#		{
-	#			if( a != b ) return 0;
+	#			if( a != b ) return 1;
 	#		}
 	#
-	#		return 1;
+	#		return 0;
 	#	}
 	# #
 	strcmp:
@@ -439,13 +465,49 @@
 
 		# str1 != str2
 		notEqual:
-			move 		$v0, $zero					# Set return value to 0
-			jr 			$ra
+			addi  		$v0, $zero, 1				# Set return value to 1
+			jr 			$ra 						# Return to caller
 
 		# str1 == str2
 		equal:
-			addi 		$v0, $zero, 1				# Set return value to 1
-			jr 			$ra
+			xor 		$v0, $v0, $v0				# Set return value to 0
+			jr 			$ra 						# Return to caller
+
+
+	# #
+	# Strind delete function
+	# 	$a0 = str
+	# 	$a1 = len
+	#
+	# This subroutine zeroes out the string in order to delete it.
+	#
+	# C equivalent function
+	#
+	# 	void strdel( char * a, int len )
+	# 	{
+	# 		int i = 0;
+	#		
+	# 		while( i <= len)
+	# 			a++ = 0;
+	#
+	#		return;
+	#	}
+	# #
+	strdel:
+		xor 			$t0, $t0, $t0 							# Set starting index to zero
+
+		deleteString:
+			bgt 		$t0, $a1, endDeleteString				# If index is greater than length of string, exit loop
+
+			sb 			$zero, ($a0)							# Store zero at current address
+
+			addi 		$t0, $t0, 1 							# Increment index
+			addi 		$a0, $a0, 1								# Increment string address
+
+			j deleteString
+		endDeleteString:
+
+		jr $ra
 
 .data
 	Dash:				.asciiz " - "
@@ -456,12 +518,13 @@
 	Allocate: 			.asciiz "allocate"
 	NumChunks:			.asciiz "Number of chunks needed: "
 	BadInput: 			.asciiz "Invalid command.\n\n"
+	BadVarName:			.asciiz "Variable name exists, allocation failed."
 	Deallocate: 		.asciiz "deallocate"
 	NamePrompt: 		.asciiz "Variable Name\n>> "
 	SizePrompt: 		.asciiz "Bytes to allocate\n>> "
 	BadChunkInput: 		.asciiz "Invalid byte size input. An integer value greater than 0 is required."
 	CommandRequest: 	.asciiz "Menu:\n\tAllocate\n\tDeallocate\n\tQuit\n"
-	NoNameSpaceFail:	.asciiz "Allocation failed due to no space for variable name storage."
+	NoNameSpaceFail:	.asciiz "Not enough free memory, allocation failed."
 	AllocateMessage1: 	.asciiz "Successfully allocated "
 	AllocateMessage2: 	.asciiz " chunk(s) for "
 	NoChunkSpaceFail: 	.asciiz "Allocation failed due to no space for memory allocation."
