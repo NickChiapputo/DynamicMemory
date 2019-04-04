@@ -356,6 +356,7 @@
 	#	$s0 - Address of first character in the variable name in the VarNames table
 	#	$s1 - Index of the first allocated chunk
 	# 	$s2 - Number of chunks
+	# 	$s3 - Address offset
 	# #
 	deallocateMemory:
 		la 				$a0, NewLine 							# Load address of NewLine string
@@ -386,26 +387,6 @@
 			lbu 		$t0, ($a1)								# Load first byte of current word in name table
 			beq 		$t0, $zero, skipLook 					# If first byte is null, no string exists. Skip checking to save computation time
 
-
-			# Print user string
-			li 			$v0, 4
-			syscall
-			addi 		$t0, $a0, 0
-
-			# Print dash
-			la 			$a0, Dash
-			syscall
-
-			# Print current string
-			addi 		$a0, $a1, 0
-			syscall
-
-			# Print newline
-			la 			$a0, NewLine
-			syscall
-			addi 		$a0, $t0, 0
-
-
 			jal 		strcmp 									# Compare user variable name and current name from table
 
 			beq 		$v0, $zero, nameFound			 		# If return value is 0, strings match and a duplicate is found
@@ -423,19 +404,94 @@
 		j 				inputLoop 								# Restart the input loop
 
 		nameFound:
+		addi 			$s0, $a1, 0 							# Store string address in $s0
+		sll 			$s3, $a2, 2								# Multiply the variable index by four to get the byte offset
+
 		# Get index of first allocated chunk
+		la 				$a0, ChunkIndexList	 					# Load address of table for index of first chunk allocated
+		add 			$a0, $a0, $s3 							# Get the full address of the first chunk for the current variable
+		lw 				$s1, ($a0)								# Get the index of the first allocated chunk	
+
+
+		# Get number of data chunks allocated for this variable
+		la 				$a0, ChunkCountList 					# Load address of table for number of chunks allocated
+		add 			$a0, $a0, $s3 							# Get the full address of the number of chunks allocated for the current variable
+		lw 				$s2, ($a0)
+
+
+		# Print values for testing
+		# Print newline
+		la 				$a0, NewLine
+		li 				$v0, 4
+		syscall
+
+		# Print index
+		addi 			$a0, $a2, 0
+		li 				$v0, 1
+		syscall
+
+		# Print dash
+		la 				$a0, Dash
+		li 				$v0, 4
+		syscall
+
+		# Print variable name
+		addi 			$a0, $s0, 0
+		syscall
+
+		# Print Dash	
+		la 				$a0, Dash
+		syscall		
+
+		# Print index of first chunk
+		addi 			$a0, $s1, 0
+		li 				$v0, 1
+		syscall
+
+		# Print Dash
+		la 				$a0, Dash
+		li 				$v0, 4
+		syscall
+
+		# Print number of chunks
+		addi 			$a0, $s2, 0
+		li 				$v0, 1
+		syscall
+
+		# Print NewLine
+		la 				$a0, NewLine
+		li 				$v0, 4
+		syscall
 
 
 		# Erase data chunks
+		la 				$a0, ChunkList 							# Load address of memory table
+		sll 			$t0, $s1, 2 							# Get address offset by multiplying starting index by four bytes
+		add 			$a0, $a0, $t0							# Get the full address of the first allocated chunk for the current variable
+		xor 			$t0, $t0, $t0 							# Set initial index to zero
 
+		eraseData:
+			sw 			$zero, ($a0) 							# Empty current index of memory table by storing a zero
+			addi 		$a0, $a0, 4 							# Increment to next data location
+			addi 		$t0, $t0, 1 							# Increment index
+
+			blt 		$t0, $s2, eraseData 					# Keep looping while current index is less than total number of chunks to be deallocated
+		endEraseData:
 
 		# Erase number of data chunks
+		la 				$a0, ChunkCountList 					# Load address of table for number of chunks allocated
+		add 			$a0, $a0, $s3 							# Get the full address of the number of chunks allocated for the current variable
+		sw 				$zero, ($a0)							# Erase number of data chunks by storing zero in location
 
 
 		# Erase index of first allocated chunk
+		la 				$a0, ChunkIndexList 					# Load address of table for index of first chunk allocated
+		add 			$a0, $a0, $s3 							# Get the full address of the index of first chunk allocated for the current variable
+		sw 				$zero, ($a0)							# Erase index of first chunk by storing zero in location
 
 
-		# Erase user variable name. $a0 already has address of variable name string
+		# Erase user variable name
+		addi 			$a0, $s0, 0 							# Load address of variable name to $a0
 		addi 			$a1, $zero, 21 							# Set $a1 to length of string
 		jal 			strdel									# Delete string (zeroes out bytes)
 
@@ -587,8 +643,8 @@
 			addi 		$t0, $t0, 1 				# Increment str1 pointer
 			addi 		$t1, $t1, 1 				# Increment str2 pointer
 
-			beq 		$t2, $zero, equal 			# If at end of string, strings are equal
 			bne 		$t2, $t3, notEqual			# Compare characters from both strings
+			beq 		$t2, $zero, equal 			# If at end of string, strings are equal
 
 			j 			loop						# Restart the loop
 
@@ -640,24 +696,23 @@
 		jr $ra
 
 .data
-	Dash:				.asciiz " - "
-	Quit:				.asciiz "quit"
-	Stop:				.asciiz "End of Program."
-	Input: 				.asciiz ">> "	
-	NewLine:			.asciiz "\n"
-	Allocate: 			.asciiz "allocate"
-	NumChunks:			.asciiz "Number of chunks needed: "
-	BadInput: 			.asciiz "Invalid command.\n\n"
-	BadVarName:			.asciiz "Variable name exists, allocation failed."
-	Deallocate: 		.asciiz "deallocate"
-	NamePrompt: 		.asciiz "Variable Name\n>> "
-	SizePrompt: 		.asciiz "Bytes to allocate\n>> "
-	BadChunkInput: 		.asciiz "Invalid byte size input. An integer value greater than 0 is required."
-	CommandRequest: 	.asciiz "Menu:\n\tAllocate\n\tDeallocate\n\tQuit\n"
-	NoNameSpaceFail:	.asciiz "Not enough free memory, allocation failed."
-	AllocateMessage1: 	.asciiz "Successfully allocated "
-	AllocateMessage2: 	.asciiz " chunk(s) for "
-	NoChunkSpaceFail: 	.asciiz "Allocation failed due to no space for memory allocation."
+	Dash:				.asciiz " - "																		# Used to format output
+	Quit:				.asciiz "quit"																		# Used to compare with user input
+	Stop:				.asciiz "\nEnd of Program."															# Tell user program has terminated
+	Input: 				.asciiz ">> "																		# Prompts user for input
+	NewLine:			.asciiz "\n"																		# newline character
+	Allocate: 			.asciiz "allocate"																	# Used to compare with user input
+	BadInput: 			.asciiz "Invalid command.\n\n"														# Tell user an invalid menu command was given
+	BadVarName:			.asciiz "\nVariable name exists, allocation failed."								# FAIL case: given variable name for allocation exists in symbol table
+	Deallocate: 		.asciiz "deallocate"																# Used to compare with user input
+	NamePrompt: 		.asciiz "Variable Name\n>> "														# Prompt user for name of variable to allocate/deallocate
+	SizePrompt: 		.asciiz "Bytes to allocate\n>> "													# Prompt user for number of bytes needed for variable
+	BadChunkInput: 		.asciiz "Invalid byte size input. An integer value greater than 0 is required."		# FAIL case: User did not give positive integer number of bytes to allocate
+	CommandRequest: 	.asciiz "Menu:\n\tAllocate\n\tDeallocate\n\tQuit\n"									# Formatted menu for user
+	NoNameSpaceFail:	.asciiz "Not enough free memory, allocation failed."								# FAIL case: Attempted allocation with not enough memory to store variable name
+	AllocateMessage1: 	.asciiz "Successfully allocated "													# First part of successful allocation message. Followed by number of chunks
+	AllocateMessage2: 	.asciiz " chunk(s) for "															# Second part of successful allocation message. Followed by variable name
+	NoChunkSpaceFail: 	.asciiz "Allocation failed due to no space for memory allocation."					# FAIL case: Attempted allocation with not enough memory to store required number of chunks
 
 	# Holds the user command string and variable name input
 	UserString: 		.space 12
