@@ -608,6 +608,21 @@
 			lbu			$t2, ($t0)					# Get next character from str1
 			lbu			$t3, ($t1)					# Get next character from str2
 
+			# Set $t2 to lower case
+			bgt 		$t2, 90, skipLowerCase1		# If ASCII value is above 90 ('Z'), character is already lower case
+			blt 		$t2, 65, skipLowerCase1 	# If ASCII value is less than 65 ('A'), character case should not be changed
+			addi 		$t2, $t2, 32 				# Flip case bit
+
+			skipLowerCase1:
+
+			# Set $t3 to lower case
+			bgt 		$t3, 90, skipLowerCase2 	# If ASCII value is above 90 ('Z'), character is already lower case
+			blt 		$t3, 65, skipLowerCase2 	# If ASCII value is less than 65 ('A'), character case should not be changed
+			addi 		$t3, $t3, 32 				# Flip case bit 
+
+			skipLowerCase2:
+
+
 			addi 		$t0, $t0, 1 				# Increment str1 pointer
 			addi 		$t1, $t1, 1 				# Increment str2 pointer
 
