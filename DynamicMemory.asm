@@ -34,9 +34,8 @@
 			beq 		$v0, $zero, deallocateMemory 			# If user string matches deallocate ($v0 = 0), jump to deallocate subroutine
 
 
-			# If user string does not match deallocate, compare with "quit"
-			la 			$a1, Quit
-			jal			strcmp
+			la 			$a1, Quit 								# Load address of Quit in $a1
+			jal			strcmp									# Compare user string with "quit"
 
 
 			beq 		$v0, $zero, exit 						# If user string matches quit, ($v0 = 0), jump to exit subroutine
@@ -329,13 +328,150 @@
 		la 				$a0, NewLine
 		syscall
 
+		jal 			printTable								# Print out table for testing. Not required in final version
 
+		j 				inputLoop 								# Restart the input loop
+
+
+	# #
+	# Deallocate Existing Memory
+	#
+	# This subroutine first gets a variable name from the user. It then
+	# searches the variable name list for that name and, if it exists,
+	# saves the index at which it was found. If not found, user is informed
+	# and is returned to the main menu (inputLoop)
+	#
+	# Once the index is found, it will find the index of the first allocated chunk
+	# and the number of chunks. First it will delete the chunks from the data table
+	# by changing the values of the proper indices to 0. Then, it will delete the 
+	# number of chunks in the ChunkCountList table by changing the value to 0. The
+	# index of the first chunk will then be deleted from the ChunkIndexList by again
+	# changing the value to 0. Finally, using the strdel routine, it will delete the 
+	# variable name from the VarNames table. 
+	#
+	# The routine will then alert the user that deallocation has successfully occurred 
+	# and will return to the main menu (inputLoop)
+	#
+	# In the loop, saved variables are:
+	#	$s0 - Address of first character in the variable name in the VarNames table
+	#	$s1 - Index of the first allocated chunk
+	# 	$s2 - Number of chunks
+	# #
+	deallocateMemory:
+		la 				$a0, NewLine 							# Load address of NewLine string
+		li 				$v0, 4									# Load print_string command
+		syscall													# Print newline
+
+
+		la 				$a0, NamePrompt							# Load address of NamePrompt
+		syscall 												# Print NamePrompt
+
+
+		la 				$a0, UserString 						# Load address of UserString to hold variable name
+		addi 			$a1, $zero, 22 							# Set max input length to 22 (string + '\n' + '\0')
+		li 				$v0, 8 									# Load read_string command
+		syscall 												# Read string from user
+
+		jal 			removeNewLine 							# Remove trailing newline from input
+
+
+		# Loop through variable name list and check if user given name exists. User string is already in $a0
+		la 				$a1, VarNames 							# Load address of the name table
+		xor				$a2, $a2, $a2 							# Initialize index to zero
+		addi 			$a3, $zero, 63							# Set max index value
+
+		lookForName:
+			bgt 		$a2, $a3, endLookForName	 			# If index is greater than max index, exit loop
+
+			lbu 		$t0, ($a1)								# Load first byte of current word in name table
+			beq 		$t0, $zero, skipLook 					# If first byte is null, no string exists. Skip checking to save computation time
+
+
+			# Print user string
+			li 			$v0, 4
+			syscall
+			addi 		$t0, $a0, 0
+
+			# Print dash
+			la 			$a0, Dash
+			syscall
+
+			# Print current string
+			addi 		$a0, $a1, 0
+			syscall
+
+			# Print newline
+			la 			$a0, NewLine
+			syscall
+			addi 		$a0, $t0, 0
+
+
+			jal 		strcmp 									# Compare user variable name and current name from table
+
+			beq 		$v0, $zero, nameFound			 		# If return value is 0, strings match and a duplicate is found
+
+			skipLook:
+			addi 		$a2, $a2, 1 							# Increment index
+			addi 		$a1, $a1, 21 							# Increment variable name address to next word
+
+			j 			lookForName
+		endLookForName:
+
+		# This will only run if variable name is not found
+
+
+		j 				inputLoop 								# Restart the input loop
+
+		nameFound:
+		# Get index of first allocated chunk
+
+
+		# Erase data chunks
+
+
+		# Erase number of data chunks
+
+
+		# Erase index of first allocated chunk
+
+
+		# Erase user variable name. $a0 already has address of variable name string
+		addi 			$a1, $zero, 21 							# Set $a1 to length of string
+		jal 			strdel									# Delete string (zeroes out bytes)
+
+
+
+		jal 			printTable								# Print out table for testing. Not required in final version
+		j 				inputLoop 								# Restart the input loop
+
+
+	# #
+	# Print table function
+	#
+	# This routine will simply print a table in the following format:
+	# 
+	#	INDEX - VAR_NAME - INDEX_OF_FIRST_CHUNK - NUM_CHUNKS
+	#
+	# C equivalent function:
+	#
+	# 	void printTable( char** names, int[] indices, int[] numChunks )
+	#	{
+	#		int i;
+	#
+	#		for( i = 0; i < 64; i++ )
+	#			printf( "%i - %s - %i - %i\n", i, names[ i ], indices[ i ], numChunks[ i ] );
+	#		puts( "" );
+	#
+	#		return;
+	# 	}
+	# #
+	printTable:		
 		# Print all data for TESTING in format INDEX - VAR_NAME - FIRST_CHUNK_INDEX - CHUNK_COUNT
 		la 				$a1, VarNames
 		la 				$a2, ChunkIndexList
 		la 				$a3, ChunkCountList
 
-		xor 			$t0, $t0, $t0 							# Reset index to zero
+		xor 			$t0, $t0, $t0 							# Set index to zero
 		addi 			$t1, $zero, 64							# Set max index to 64
 
 		printData:
@@ -380,19 +516,13 @@
 			addi 		$t0, $t0, 1 							# Increment index
 
 			blt 		$t0, $t1, printData 					# Keep looping while index is less than max index
+
+			la 			$a0, NewLine 							# Load address of NewLine string
+			li 			$v0, 4 									# Load print_string command
 			syscall 											# Print newline
 		endPrintData:
 
-
-		j 				inputLoop 								# Restart the input loop
-
-	deallocateMemory:
-		li 				$v0, 4
-		la 				$a0, Deallocate
-		syscall
-
-
-		j 				inputLoop 								# Restart the input loop
+		jr 				$ra 									# Return to caller
 
 
 	# #
@@ -475,7 +605,7 @@
 
 
 	# #
-	# Strind delete function
+	# String delete function
 	# 	$a0 = str
 	# 	$a1 = len
 	#
@@ -530,7 +660,7 @@
 	NoChunkSpaceFail: 	.asciiz "Allocation failed due to no space for memory allocation."
 
 	# Holds the user command string and variable name input
-	UserString: 		.space 11
+	UserString: 		.space 12
 
 	# Holds user-defined variable names (64 names x 21 max size = 1344 bytes)
 	# Max size of 21 = 20 characters + '\0'
