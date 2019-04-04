@@ -23,20 +23,23 @@
 			la 			$a1, Allocate 							# Load address of Allocate in $a1
 			jal 		strcmp									# Compare user string with "allocate"
 
-
 			beq 		$v0, $zero, allocateMemory				# If user string matches allocate ($v0 = 0), jump to allocate subroutine
 
 
 			la 			$a1, Deallocate 						# Load address of Deallocate in $a1
 			jal 		strcmp									# Compare user string with "deallocate"
 
-
 			beq 		$v0, $zero, deallocateMemory 			# If user string matches deallocate ($v0 = 0), jump to deallocate subroutine
+
+
+			la 			$a1, Table 								# Load address of Table in $a1
+			jal strcmp 											# Compare user string with "table"
+
+			beq 		$v0, $zero, printTable 					# If user string matches table ($v0 = 0), jump to print table
 
 
 			la 			$a1, Quit 								# Load address of Quit in $a1
 			jal			strcmp									# Compare user string with "quit"
-
 
 			beq 		$v0, $zero, exit 						# If user string matches quit, ($v0 = 0), jump to exit subroutine
 
@@ -327,8 +330,8 @@
 		li 				$v0, 4
 		la 				$a0, NewLine
 		syscall
+		syscall
 
-		jal 			printTable								# Print out table for testing. Not required in final version
 
 		j 				inputLoop 								# Restart the input loop
 
@@ -399,7 +402,13 @@
 		endLookForName:
 
 		# This will only run if variable name is not found
+		la 				$a0, BadVariable 						# Load address of BadVariable string
+		li 				$v0, 4 									# Load print_string command
+		syscall 												# Print BadVariable string
 
+		la 				$a0, NewLine 							# Load address of NewLine
+		syscall													# Print newline
+		syscall													# Print newline
 
 		j 				inputLoop 								# Restart the input loop
 
@@ -419,51 +428,6 @@
 		lw 				$s2, ($a0)
 
 
-		# Print values for testing
-		# Print newline
-		la 				$a0, NewLine
-		li 				$v0, 4
-		syscall
-
-		# Print index
-		addi 			$a0, $a2, 0
-		li 				$v0, 1
-		syscall
-
-		# Print dash
-		la 				$a0, Dash
-		li 				$v0, 4
-		syscall
-
-		# Print variable name
-		addi 			$a0, $s0, 0
-		syscall
-
-		# Print Dash	
-		la 				$a0, Dash
-		syscall		
-
-		# Print index of first chunk
-		addi 			$a0, $s1, 0
-		li 				$v0, 1
-		syscall
-
-		# Print Dash
-		la 				$a0, Dash
-		li 				$v0, 4
-		syscall
-
-		# Print number of chunks
-		addi 			$a0, $s2, 0
-		li 				$v0, 1
-		syscall
-
-		# Print NewLine
-		la 				$a0, NewLine
-		li 				$v0, 4
-		syscall
-
-
 		# Erase data chunks
 		la 				$a0, ChunkList 							# Load address of memory table
 		sll 			$t0, $s1, 2 							# Get address offset by multiplying starting index by four bytes
@@ -477,6 +441,7 @@
 
 			blt 		$t0, $s2, eraseData 					# Keep looping while current index is less than total number of chunks to be deallocated
 		endEraseData:
+
 
 		# Erase number of data chunks
 		la 				$a0, ChunkCountList 					# Load address of table for number of chunks allocated
@@ -494,7 +459,6 @@
 		addi 			$a0, $s0, 0 							# Load address of variable name to $a0
 		addi 			$a1, $zero, 21 							# Set $a1 to length of string
 		jal 			strdel									# Delete string (zeroes out bytes)
-
 
 
 		jal 			printTable								# Print out table for testing. Not required in final version
@@ -522,6 +486,10 @@
 	# 	}
 	# #
 	printTable:		
+		la 				$a0, NewLine 							# Load address of NewLine
+		li 				$v0, 4									# Load print_string command
+		syscall													# Print newline
+
 		# Print all data for TESTING in format INDEX - VAR_NAME - FIRST_CHUNK_INDEX - CHUNK_COUNT
 		la 				$a1, VarNames
 		la 				$a2, ChunkIndexList
@@ -578,7 +546,7 @@
 			syscall 											# Print newline
 		endPrintData:
 
-		jr 				$ra 									# Return to caller
+		j 				inputLoop								# Return to main menu
 
 
 	# #
@@ -700,6 +668,7 @@
 	Quit:				.asciiz "quit"																		# Used to compare with user input
 	Stop:				.asciiz "\nEnd of Program."															# Tell user program has terminated
 	Input: 				.asciiz ">> "																		# Prompts user for input
+	Table: 				.asciiz "table"																		# Used to compare with user inptu
 	NewLine:			.asciiz "\n"																		# newline character
 	Allocate: 			.asciiz "allocate"																	# Used to compare with user input
 	BadInput: 			.asciiz "Invalid command.\n\n"														# Tell user an invalid menu command was given
@@ -707,8 +676,9 @@
 	Deallocate: 		.asciiz "deallocate"																# Used to compare with user input
 	NamePrompt: 		.asciiz "Variable Name\n>> "														# Prompt user for name of variable to allocate/deallocate
 	SizePrompt: 		.asciiz "Bytes to allocate\n>> "													# Prompt user for number of bytes needed for variable
+	BadVariable:		.asciiz "\nVariable not found in symbol table, unable to deallocate."				# FAIL case: User attempts to deallocate variable name that doesn't exist
 	BadChunkInput: 		.asciiz "Invalid byte size input. An integer value greater than 0 is required."		# FAIL case: User did not give positive integer number of bytes to allocate
-	CommandRequest: 	.asciiz "Menu:\n\tAllocate\n\tDeallocate\n\tQuit\n"									# Formatted menu for user
+	CommandRequest: 	.asciiz "Menu:\n\tAllocate\n\tDeallocate\n\tTable\n\tQuit\n"						# Formatted menu for user
 	NoNameSpaceFail:	.asciiz "Not enough free memory, allocation failed."								# FAIL case: Attempted allocation with not enough memory to store variable name
 	AllocateMessage1: 	.asciiz "Successfully allocated "													# First part of successful allocation message. Followed by number of chunks
 	AllocateMessage2: 	.asciiz " chunk(s) for "															# Second part of successful allocation message. Followed by variable name
