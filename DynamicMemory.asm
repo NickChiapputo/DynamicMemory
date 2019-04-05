@@ -443,6 +443,35 @@
 		endEraseData:
 
 
+		# Print successful deallocation messages. Must do before deleting rest of data so that it can be displayed to user
+		la 				$a0, DeallocateMessage1 				# Load address of DeallocateMessage1
+		addi 			$v0, $zero, 4 							# Load print_string command
+		syscall 												# Print DeallocateMessage1
+
+		addi 				$a0, $s0, 0 							# Load address of variable name to $a0
+		syscall 												# Print variable name
+
+		la 				$a0, DeallocateMessage2 				# Load address of DeallocateMessage2
+		addi 			$v0, $zero, 4 							# Load print_string command
+		syscall 												# Print DeallocateMessage2
+
+		addi 			$a0, $s2, 0 							# Load number of chunks
+		addi 			$v0, $zero, 1 							# Load print_int command
+		syscall 												# Print number of chunk
+
+		la 				$a0, DeallocateMessage3 				# Load address of DeallocateMessage3
+		addi 			$v0, $zero, 4 							# Load print_string command
+		syscall 												# Print DeallocateMessage3
+
+		addi 			$a0, $s1, 0 							# Load starting index of chunks deleted
+		addi 			$v0, $zero, 1 							# Load print_int command
+		syscall 												# Print starting idnex of chunks deleted
+
+		la 				$a0, DeallocateMessage4 				# Load address of DeallocateMessage4
+		addi 			$v0, $zero, 4 							# Load print_string command
+		syscall 												# Print DeallocateMessage4
+
+
 		# Erase number of data chunks
 		la 				$a0, ChunkCountList 					# Load address of table for number of chunks allocated
 		add 			$a0, $a0, $s3 							# Get the full address of the number of chunks allocated for the current variable
@@ -461,7 +490,6 @@
 		jal 			strdel									# Delete string (zeroes out bytes)
 
 
-		jal 			printTable								# Print out table for testing. Not required in final version
 		j 				inputLoop 								# Restart the input loop
 
 
@@ -478,9 +506,13 @@
 	#	{
 	#		int i;
 	#
+	# 		puts( "+-------+----------------------+----------------+------------------+" );
+	#		puts( "| Index |     Variable Name    | Starting Index | Number of Chunks |" );
+	# 		puts( "+-------+----------------------+----------------+------------------+" );
+	#
 	#		for( i = 0; i < 64; i++ )
-	#			printf( "%i - %s - %i - %i\n", i, names[ i ], indices[ i ], numChunks[ i ] );
-	#		puts( "" );
+	#			printf( "| %2i    | %20s | %2i             | %2i               |\n", i, names[ i ], indices[ i ], numChunks[ i ] );
+	# 		puts( "+-------+----------------------+----------------+------------------+" );
 	#
 	#		return;
 	# 	}
@@ -489,6 +521,15 @@
 		la 				$a0, NewLine 							# Load address of NewLine
 		li 				$v0, 4									# Load print_string command
 		syscall													# Print newline
+
+		la 				$a0, TableDivider 						# Load address of TableDivider string
+		syscall 												# Print TableDivider
+
+		la 				$a0, TableHeader 						# Load address of TableHeader string
+		syscall 												# Print TableHeader
+
+		la 				$a0, TableDivider 						# Load address of TableDivider string
+		syscall 												# Print TableDivider
 
 		# Print all data for TESTING in format INDEX - VAR_NAME - FIRST_CHUNK_INDEX - CHUNK_COUNT
 		la 				$a1, VarNames
@@ -502,35 +543,127 @@
 			lbu 		$t2, ($a1) 								# Load first byte of current word
 			beq 		$t2, $zero, skipPrint					# If current word is empty, skip print to save console space
 
+
+			la 			$a0, TableLeftEdge 						# Load address of TableLeftEdge string
+			addi 		$v0, $zero, 4 							# Load print_string command
+			syscall 											# Print TableLeftEdge
+
+
+			# Print index value with padding to form 5 spaces
+			xor 		$t2, $t2, $t2 							# Set starting index to 0
+			addi 		$t3, $zero, 2 							# Set maximum index initially to two
+			addi 		$a0, $zero, 32 							# Load ASCII value for space (' ')
+			addi 		$v0, $zero, 11 							# Load print_byte command
+
+			bgt 		$t0, 9, printIndexSpaces 				# If the index is greater than nine, only three spaces are needed
+			addi 		$t3, $t3, 1 							# If the index is less than ten, four spaces are needed
+
+			printIndexSpaces:
+				bgt 	$t2, $t3, endPrintIndexSpaces 			# Keep looping until index is greater than maximum index
+				
+				syscall 										# Print space
+				
+				addi 	$t2, $t2, 1 							# Increment index by 1
+				
+				j 		printIndexSpaces 						# Keep looping
+			endPrintIndexSpaces:
+
 			li 			$v0, 1									# Load print_int command
 			addi 		$a0, $t0, 0								# Store current index in $a0
 			syscall												# Print current index
 
-			la 			$a0, Dash 								# Load address of Dash string
+			la 			$a0, TableBorder 						# Load address of TableBorder string
 			li 			$v0, 4 									# Load print_string command
 			syscall												# Print Dash string	
 
-			addi 		$a0, $a1, 0 							# Load address of current variable name
-			syscall 											# Print current variable name
 
-			la 			$a0, Dash 								# Load address of Dash string
-			syscall												# Print Dash string
+			# Print variable name with padding to form 20 spaces
+			addi 		$t2, $a1, 0 							# Store string address in temp register $t2
+			xor 		$t3, $t3, $t3 							# Set initial index to zero
+			addi 		$v0, $zero, 11 							# Load print_byte command
+			addi 		$t4, $zero, 20 							# Set max string length (20 = max length - '\0')
 
-			lw 			$a0, ($a2)								# Store current chunk index in $a0
-			li 			$v0, 1									# Load print_int command
-			syscall												# Print current index
+			printName:
+				bge 	$t3, $t4, endPrintName 					# Keep looping until index is greater than max index
 
-			la 			$a0, Dash 								# Load address of Dash string
+				lbu 	$a0, ($t2) 								# Load current byte
+
+				bne 	$a0, $zero, skipSpace 					# If current byte is not null-terminator, don't print space
+
+				addi 	$a0, $zero, 32 							# Load ASCII value of space (' ')
+
+				skipSpace:
+
+				syscall 										# Print current character (either character or space)
+
+				addi 	$t2, $t2, 1 							# Increment address by 1 byte for next character
+				addi 	$t3, $t3, 1 							# Increment index by 1
+
+				j 		printName 								# Continue looping
+			endPrintName:
+
+
+			la 			$a0, TableBorder						# Load address of Dash string
 			li 			$v0, 4 									# Load print_string command
 			syscall												# Print Dash string
 
-			lw 			$a0, ($a3)								# Store current chunk count in $a0
+
+			# Print starting chunk index value with padding to form 13 spaces
+			lw 			$t4, ($a2) 								# Load starting chunk index value
+			xor 		$t2, $t2, $t2 							# Set starting index to 0
+			addi 		$t3, $zero, 11 							# Set maximum index initially to 11
+			addi 		$a0, $zero, 32 							# Load ASCII value for space (' ')
+			addi 		$v0, $zero, 11 							# Load print_byte command
+
+			bgt 		$t4, 9, printStartIndexSpaces 			# If the index is greater than nine, only three spaces are needed
+			addi 		$t3, $t3, 1 							# If the index is less than ten, four spaces are needed
+
+			printStartIndexSpaces:
+				bgt 	$t2, $t3, endPrintStartIndexSpaces 		# Keep looping until index is greater than maximum index
+				
+				syscall 										# Print space
+				
+				addi 	$t2, $t2, 1 							# Increment index by 1
+				
+				j 		printStartIndexSpaces					# Keep looping
+			endPrintStartIndexSpaces:
+
+			addi 		$a0, $t4, 0								# Store current chunk index in $a0
 			li 			$v0, 1									# Load print_int command
 			syscall												# Print current index
 
-			la 			$a0, NewLine 							# Load address of NewLine string
+			la 			$a0, TableBorder						# Load address of Dash string
 			li 			$v0, 4 									# Load print_string command
-			syscall												# Print newline
+			syscall												# Print Dash string
+
+
+			# Print number of chunk with padding to form 13 spaces
+			lw 			$t4, ($a3) 								# Load current chunk count value
+			xor 		$t2, $t2, $t2 							# Set starting index to 0
+			addi 		$t3, $zero, 13 							# Set maximum index initially to 13
+			addi 		$a0, $zero, 32 							# Load ASCII value for space (' ')
+			addi 		$v0, $zero, 11 							# Load print_byte command
+
+			bgt 		$t4, 9, printNumChunkSpaces 			# If the index is greater than nine, only three spaces are needed
+			addi 		$t3, $t3, 1 							# If the index is less than ten, four spaces are needed
+
+			printNumChunkSpaces:
+				bgt 	$t2, $t3, endPrintNumChunkSpaces 		# Keep looping until index is greater than maximum index
+				
+				syscall 										# Print space
+				
+				addi 	$t2, $t2, 1 							# Increment index by 1
+				
+				j 		printNumChunkSpaces						# Keep looping
+			endPrintNumChunkSpaces:
+
+			addi		$a0, $t4, 0								# Store current chunk count in $a0
+			li 			$v0, 1									# Load print_int command
+			syscall												# Print current index
+
+			la 			$a0, TableRightEdge 					# Load address of TableRightEdge string
+			li 			$v0, 4 									# Load print_string command
+			syscall												# Print TableRightEdge
 
 			skipPrint:
 
@@ -541,8 +674,12 @@
 
 			blt 		$t0, $t1, printData 					# Keep looping while index is less than max index
 
+
+			la 			$a0, TableDivider	 					# Load address of TableDivider string
+			addi 		$v0, $zero, 4 							# Load print_string command
+			syscall 											# Print TableDivider
+
 			la 			$a0, NewLine 							# Load address of NewLine string
-			li 			$v0, 4 									# Load print_string command
 			syscall 											# Print newline
 		endPrintData:
 
@@ -582,7 +719,7 @@
 
 
 	# #
-	# String compare function							
+	# Case insensitive string compare function							
 	# 	$a0 = str1 (user string)
 	#	$a1 = str2 (constant string)
 	# 	$v0 = return value (0 = equal, 1 = not equal)	
@@ -591,9 +728,13 @@
 	#													
 	#	int strcmp( char* a, char* b )					
 	# 	{
-	#		while( a != 0 )
+	#		while( 1 )
 	#		{
+	#			if( a > 64 && a < 91 ) a += 32;
+	# 			if( b > 64 && b < 91 ) b += 32;
+	#
 	#			if( a != b ) return 1;
+	#			else if( a == 0 ) return 0;
 	#		}
 	#
 	#		return 0;
@@ -666,7 +807,7 @@
 		xor 			$t0, $t0, $t0 							# Set starting index to zero
 
 		deleteString:
-			bgt 		$t0, $a1, endDeleteString				# If index is greater than length of string, exit loop
+			bge 		$t0, $a1, endDeleteString				# If index is greater than length of string, exit loop
 
 			sb 			$zero, ($a0)							# Store zero at current address
 
@@ -692,15 +833,24 @@
 	NamePrompt: 		.asciiz "Variable Name\n>> "														# Prompt user for name of variable to allocate/deallocate
 	SizePrompt: 		.asciiz "Bytes to allocate\n>> "													# Prompt user for number of bytes needed for variable
 	BadVariable:		.asciiz "\nVariable not found in symbol table, unable to deallocate."				# FAIL case: User attempts to deallocate variable name that doesn't exist
+	TableBorder: 		.asciiz " | " 																		# Used to format table output
+	TableHeader:		.asciiz "| Index |     Variable Name    | Starting Index | Number of Chunks |\n" 	# Header string for table output
+	TableDivider:		.asciiz "+-------+----------------------+----------------+------------------+\n" 	# Used to format table output
 	BadChunkInput: 		.asciiz "Invalid byte size input. An integer value greater than 0 is required."		# FAIL case: User did not give positive integer number of bytes to allocate
+	TableLeftEdge: 		.asciiz "| " 																		# Used for table formatting
 	CommandRequest: 	.asciiz "Menu:\n\tAllocate\n\tDeallocate\n\tTable\n\tQuit\n"						# Formatted menu for user
+	TableRightEdge:		.asciiz " |\n" 																		# Used for table formatting
 	NoNameSpaceFail:	.asciiz "Not enough free memory, allocation failed."								# FAIL case: Attempted allocation with not enough memory to store variable name
 	AllocateMessage1: 	.asciiz "Successfully allocated "													# First part of successful allocation message. Followed by number of chunks
 	AllocateMessage2: 	.asciiz " chunk(s) for "															# Second part of successful allocation message. Followed by variable name
 	NoChunkSpaceFail: 	.asciiz "Allocation failed due to no space for memory allocation."					# FAIL case: Attempted allocation with not enough memory to store required number of chunks
+	DeallocateMessage1: .asciiz "Successfully deallocated " 												# First part of successful deallocation message. Followed by variable name
+	DeallocateMessage2: .asciiz " and freed "																# Second part of successful deallocation message. Followed by number of chunks freed
+	DeallocateMessage3: .asciiz " chunks starting at index " 												# Third part of successful deallocation message. Followed by starting index of freed chunks
+	DeallocateMessage4: .asciiz ".\n" 																		# Fourth part of successful deallocate message. End of deallocation messages
 
 	# Holds the user command string and variable name input
-	UserString: 		.space 12
+	UserString: 		.space 22
 
 	# Holds user-defined variable names (64 names x 21 max size = 1344 bytes)
 	# Max size of 21 = 20 characters + '\0'
