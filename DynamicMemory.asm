@@ -15,7 +15,7 @@
 			# Read command
 			li 			$v0, 8									# Load read_string command
 			la 			$a0, UserString							# Put buffer address in $a0
-			addi 		$a1, $zero, 12 							# Read a maximum of 12 characters (deallocate = 10 + '\n' + '\0')
+			addi 		$a1, $zero, 13 							# Read a maximum of 12 characters (deallocate = 10 + '\n' + '\0')
 			syscall												# User command will be stored in $a0
 			jal 		removeNewLine							# Remove trailing newline from input
 
@@ -301,7 +301,6 @@
 		la 				$a0, NewLine 							# Load address of NewLine string
 		li 				$v0, 4									# Load print_string command
 		syscall													# Print newline
-		syscall 												# Print newline
 
 
 		# Print successful allocation message one
@@ -448,7 +447,7 @@
 		addi 			$v0, $zero, 4 							# Load print_string command
 		syscall 												# Print DeallocateMessage1
 
-		addi 				$a0, $s0, 0 							# Load address of variable name to $a0
+		addi 			$a0, $s0, 0 							# Load address of variable name to $a0
 		syscall 												# Print variable name
 
 		la 				$a0, DeallocateMessage2 				# Load address of DeallocateMessage2
@@ -470,6 +469,11 @@
 		la 				$a0, DeallocateMessage4 				# Load address of DeallocateMessage4
 		addi 			$v0, $zero, 4 							# Load print_string command
 		syscall 												# Print DeallocateMessage4
+
+		# Print newline
+		li 				$v0, 4
+		la 				$a0, NewLine
+		syscall
 
 
 		# Erase number of data chunks
@@ -730,8 +734,8 @@
 	# 	{
 	#		while( 1 )
 	#		{
-	#			if( a > 64 && a < 91 ) a += 32;
-	# 			if( b > 64 && b < 91 ) b += 32;
+	#			if( a > 64 && a < 91 ) a = a ^ 32;
+	# 			if( b > 64 && b < 91 ) b = b ^ 32;
 	#
 	#			if( a != b ) return 1;
 	#			else if( a == 0 ) return 0;
@@ -797,8 +801,11 @@
 	# 	{
 	# 		int i = 0;
 	#		
-	# 		while( i <= len)
-	# 			a++ = 0;
+	# 		while( i++ <= len)
+	#		{
+	# 			a++ ;
+	#			a = 0;
+	#		}
 	#
 	#		return;
 	#	}
@@ -827,7 +834,7 @@
 	Table: 				.asciiz "table"																		# Used to compare with user inptu
 	NewLine:			.asciiz "\n"																		# newline character
 	Allocate: 			.asciiz "allocate"																	# Used to compare with user input
-	BadInput: 			.asciiz "Invalid command.\n\n"														# Tell user an invalid menu command was given
+	BadInput: 			.asciiz "\nInvalid command.\n\n"														# Tell user an invalid menu command was given
 	BadVarName:			.asciiz "\nVariable name exists, allocation failed."								# FAIL case: given variable name for allocation exists in symbol table
 	Deallocate: 		.asciiz "deallocate"																# Used to compare with user input
 	NamePrompt: 		.asciiz "Variable Name\n>> "														# Prompt user for name of variable to allocate/deallocate
@@ -844,13 +851,13 @@
 	AllocateMessage1: 	.asciiz "Successfully allocated "													# First part of successful allocation message. Followed by number of chunks
 	AllocateMessage2: 	.asciiz " chunk(s) for "															# Second part of successful allocation message. Followed by variable name
 	NoChunkSpaceFail: 	.asciiz "Allocation failed due to no space for memory allocation."					# FAIL case: Attempted allocation with not enough memory to store required number of chunks
-	DeallocateMessage1: .asciiz "Successfully deallocated " 												# First part of successful deallocation message. Followed by variable name
+	DeallocateMessage1: .asciiz "\nSuccessfully deallocated " 												# First part of successful deallocation message. Followed by variable name
 	DeallocateMessage2: .asciiz " and freed "																# Second part of successful deallocation message. Followed by number of chunks freed
-	DeallocateMessage3: .asciiz " chunks starting at index " 												# Third part of successful deallocation message. Followed by starting index of freed chunks
+	DeallocateMessage3: .asciiz " chunk(s) starting at index " 												# Third part of successful deallocation message. Followed by starting index of freed chunks
 	DeallocateMessage4: .asciiz ".\n" 																		# Fourth part of successful deallocate message. End of deallocation messages
 
 	# Holds the user command string and variable name input
-	UserString: 		.space 22
+	UserString: 		.space 23
 
 	# Holds user-defined variable names (64 names x 21 max size = 1344 bytes)
 	# Max size of 21 = 20 characters + '\0'
